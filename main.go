@@ -9,7 +9,7 @@ import (
 )
 
 func main() {
-	limiter := ratelimiter.NewTokenBucket(10, 1) // Max 10 tokens, 1 token per second
+	limiter := ratelimiter.NewTokenBucket(10, 1, true) // Max 10 tokens, 1 token per second, enable logging
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if !limiter.Allow() {

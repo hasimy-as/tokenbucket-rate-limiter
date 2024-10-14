@@ -1,31 +1,46 @@
 package service
 
 import (
+	"log"
+	"sync"
 	"time"
 )
 
 type TokenBucket struct {
-	tokens     int
-	maxTokens  int
-	refillRate int // tokens per second
+	tokens     float64
+	maxTokens  float64
+	refillRate float64 // tokens per second
 	lastRefill time.Time
+	mutex      sync.Mutex
+	logging    bool // optional logging
 }
 
-func NewTokenBucket(maxTokens, refillRate int) *TokenBucket {
+func NewTokenBucket(maxTokens, refillRate int, logging bool) *TokenBucket {
 	return &TokenBucket{
-		tokens:     maxTokens,
-		maxTokens:  maxTokens,
-		refillRate: refillRate,
+		tokens:     float64(maxTokens),
+		maxTokens:  float64(maxTokens),
+		refillRate: float64(refillRate),
 		lastRefill: time.Now(),
+		logging:    logging,
 	}
 }
 
 func (tb *TokenBucket) Allow() bool {
+	tb.mutex.Lock()
+	defer tb.mutex.Unlock()
+
 	tb.refill()
 
-	if tb.tokens > 0 {
+	if tb.tokens >= 1 {
 		tb.tokens--
+		if tb.logging {
+			log.Println("Request allowed, remaining tokens:", tb.tokens)
+		}
 		return true
+	}
+
+	if tb.logging {
+		log.Println("Request denied due to rate limiting")
 	}
 	return false
 }
@@ -33,15 +48,11 @@ func (tb *TokenBucket) Allow() bool {
 func (tb *TokenBucket) refill() {
 	now := time.Now()
 	elapsed := now.Sub(tb.lastRefill).Seconds()
-	newTokens := int(elapsed) * tb.refillRate
-
-	if newTokens > 0 {
-		tb.tokens = min(tb.tokens+newTokens, tb.maxTokens)
-		tb.lastRefill = now
-	}
+	tb.tokens = min(tb.tokens+(elapsed*tb.refillRate), tb.maxTokens)
+	tb.lastRefill = now
 }
 
-func min(a, b int) int {
+func min(a, b float64) float64 {
 	if a < b {
 		return a
 	}
